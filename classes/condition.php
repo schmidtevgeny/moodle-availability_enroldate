@@ -59,7 +59,6 @@ class condition extends \core_availability\condition {
      * @throws \coding_exception If invalid data structure.
      */
     public function __construct($structure) {
-        global $CFG, $USER, $COURSE, $DB;
         // Get direction.
         if (isset($structure->d) && in_array($structure->d,
                 array(self::ENROLDATE_AFTER, self::ENROLDATE_BEFORE))) {
@@ -68,18 +67,6 @@ class condition extends \core_availability\condition {
             throw new \coding_exception('Missing or invalid ->d for date condition');
         }
 
-        $coursecontext = \context_course::instance($COURSE->id);
-
-        if (is_enrolled($coursecontext)) {
-            $sql = "SELECT max(ue.timecreated) as enroldate
-                      FROM {user_enrolments} ue
-                      JOIN {enrol} e ON (e.id = ue.enrolid AND e.courseid = :courseid)
-                      JOIN {user} u ON u.id = ue.userid
-                     WHERE ue.userid = :userid AND u.deleted = 0";
-            $params = array('userid' => $USER->id, 'courseid' => $coursecontext->instanceid);
-            $enroldate = $DB->get_field_sql($sql, $params, IGNORE_MISSING);
-            $this->enroltime = $enroldate;
-        }
         // Get time.
         if (isset($structure->t) && is_int($structure->t)) {
             $this->time = $structure->t;
@@ -136,6 +123,20 @@ class condition extends \core_availability\condition {
      * @return bool True if available
      */
     public function is_available($not, \core_availability\info $info, $grabthelot, $userid) {
+        global $DB;
+        $coursecontext = \context_course::instance($info->get_course()->id);
+
+        if (is_enrolled($coursecontext, $userid)) {
+            $sql = "SELECT max(ue.timecreated) as enroldate
+                      FROM {user_enrolments} ue
+                      JOIN {enrol} e ON (e.id = ue.enrolid AND e.courseid = :courseid)
+                      JOIN {user} u ON u.id = ue.userid
+                     WHERE ue.userid = :userid AND u.deleted = 0";
+            $params = array('userid' => $userid, 'courseid' => $coursecontext->instanceid);
+            $enroldate = $DB->get_field_sql($sql, $params, IGNORE_MISSING);
+            $this->enroltime = $enroldate;
+        }
+
         return $this->is_available_for_all($not);
     }
 
